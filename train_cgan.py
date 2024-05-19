@@ -3,9 +3,19 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.optim as optim
+import matplotlib.pyplot as plt
 from models import Generator, Discriminator  # 从 models.py 中导入生成器和判别器模型
 from torch.utils.data import DataLoader, TensorDataset
 from data_preprocessing import preprocess_data_in_batches, extract_tarfile  # 从 data_preprocessing.py 中导入函数
+
+# 定义可视化函数
+def visualize_data(frames, num_images = 5):
+    plt.figure(figsize = (10, 2 * num_images))
+    for i in range(num_images):
+        plt.subplot(num_images, 1, i + 1)
+        plt.imshow(frames[i].astype(np.uint8))
+        plt.axis('off')
+    plt.show()
 
 # 定义训练cGAN模型的函数
 def train_cgan(generator, discriminator, data_loader, epochs=100, batch_size=32, lr=0.0002):
@@ -48,9 +58,9 @@ def train_cgan(generator, discriminator, data_loader, epochs=100, batch_size=32,
         print(f'Epoch [{epoch + 1}/{epochs}], d_loss: {d_loss.item():.4f}, g_loss: {g_loss.item():.4f}')
 
     # 保存生成器和判别器模型
-    torch.save(generator.state_dict(), 'generator.pth')
-    torch.save(discriminator.state_dict(), 'discriminator.pth')
-    print("Models saved as 'generator.pth' and 'discriminator.pth'")
+    torch.save(generator.state_dict(), '/content/drive/My Drive/generator.pth')
+    torch.save(discriminator.state_dict(), '/content/drive/My Drive/discriminator.pth')
+    print("Models saved as 'generator.pth' and 'discriminator.pth' in Google Drive")
 
 if __name__ == "__main__":
     # 设置文件夹路径
@@ -66,24 +76,41 @@ if __name__ == "__main__":
     all_frames = []
     all_labels = []
     batch_size = 50
+    max_sequences = 100  #只处理前100组数据
+    sequence_count = 0   # 初始化计数器
 
     # 使用数据预处理函数来批量处理数据
-    for batch_data in preprocess_data_in_batches(frames_folder, labels_folder, batch_size):
+    for batch_data in preprocess_data_in_batches(frames_folder, labels_folder, batch_size, target_size = (128, 128)):
         for frames, labels in batch_data:
+            if sequence_count >= max_sequences:
+                break
             # 将每个批次的帧和标签添加到总列表中
             all_frames.append(frames)
-            all_labels.append(labels)
+            if labels and len(labels) > 0:
+                all_labels.append(labels)
+            sequence_count += 1
+        if sequence_count >= max_sequences:
+            break
 
     # 将所有帧和标签合并为单个NumPy数组
     all_frames = np.concatenate(all_frames, axis = 0)
-    all_labels = np.concatenate(all_labels, axis = 0)
+    all_labels = [label for label in all_labels if len(label) > 0]
+    concatenated_labels = {key: np.concatenate([d[key] for d in all_labels], axis=0) for key in all_labels[0]}
+
+    # 可视化数据
+    visualize_data(all_frames)
 
     # 将NumPy数组转换成PyTorch张量
     preprocessed_frames = torch.tensor(all_frames, dtype = torch.float32)
-    preprocessed_labels = torch.tensor(all_labels, dtype = torch.float32)
+    
+    # 将每个标签字段转换为PyTorch张量
+    preprocessed_labels_dict = {key: torch.tensor(concatenated_labels[key], dtype=torch.float32) for key in concatenated_labels}
+
+    # 创建包含所有标签的TensorDataset对象
+    dataset = TensorDataset(preprocessed_frames, *preprocessed_labels_dict.values())
 
     # 创建TensorDataset对象，将帧和标签打包在一起
-    dataset = TensorDataset(preprocessed_frames, preprocessed_labels)
+    dataset = TensorDataset(preprocessed_frames, labels)
 
     # 创建DataLoader，设置batch_size并将数据随机打乱
     data_loader = DataLoader(dataset, batch_size = 32, shuffle = True)

@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 # 加载生成器模型
 generator = Generator()
 generator.load_state_dict(torch.load('/content/drive/My Drive/generator.pth'))
-generator.eval() # 设置为评估模式
+generator.eval()  # 设置模型为评估模式
 
 # 加载判别器模型
 discriminator = Discriminator()

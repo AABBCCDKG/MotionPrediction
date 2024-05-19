@@ -9,7 +9,8 @@ output_size = 128 * 128 * 3 # 输出大小
 
 lstm_model = LSTMModel(input_size, hidden_size, num_layers, output_size)
 lstm_model.load_state_dict(torch.load('/content/drive/My Drive/lstm_model.pth'))
-lstm_model.eval() # 设置为评估模式
+lstm_model.eval()  # 设置模型为评估模式
+
 
 # 准备输入数据
 new_frames = torch.randn(1, input_size)  # 生成一个随机输入序列

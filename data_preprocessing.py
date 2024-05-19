@@ -3,6 +3,7 @@
 # 数据结构：预处理后的数据会被组织成一个列表或者数组，其中每一个元素包含一对（图像帧，标签数据）数据
 from google.colab import drive
 import os
+import cv2
 import tarfile        # 解压缩`.tar.gz`文件
 import scipy.io       # 读取`.mat`文件
 import numpy as np    # 处理数组
@@ -32,8 +33,8 @@ with tarfile.open(tar_path, 'r:gz') as tar:
     tar.extractall(path=extract_path)
 print(f"Extracted {tar_path} to {extract_path}")
 
-# 定义函数读取图像帧
-def load_frames(frames_folder):
+# 定义函数读取图像帧 输入0001这样的文件夹，输出包含所有图像帧的NumPy数组
+def load_frames(frames_folder, target_size = (128, 128)):
     # 获取文件夹中的所有文件，并按名称排序
     frames_files = sorted(os.listdir(frames_folder))
     frames = []
@@ -41,12 +42,12 @@ def load_frames(frames_folder):
         # 构建每个图像文件的完整路径
         frame_path = os.path.join(frames_folder, frames_file)
         # 使用PIL打开图像并转换为NumPy数组
-        frame = Image.open(frame_path)
+        frame = Image.open(frame_path).resize(target_size)
         frames.append(np.array(frame))
     # 返回包含所有图像帧的NumPy数组
     return np.array(frames)
 
-# 定义函数读取标签文件
+# 定义函数读取标签文件 输入.mat文件，输出numpy数组
 def load_labels(label_file):
     # 使用SciPy加载MAT文件
     mat = scipy.io.loadmat(label_file)
@@ -54,32 +55,38 @@ def load_labels(label_file):
     labels = {key: np.array(value) for key, value in mat.items() if key[0] != '_'}
     return labels
 
-# 定义函数来批量处理数据
-def preprocess_data_in_batches(frames_folder, labels_folder, batch_size = 100):
+# 定义函数来批量处理数据 max_sequences是最大序列数，就是处理了几组frames，如果是只处理0001，0002这两组数据，那么max_sequences=2
+def preprocess_data_in_batches(frames_folder, labels_folder, batch_size = 100, max_sequences = 100, target_size = (128, 128)):
     # 获取所有文件夹并按名称排序
     all_folders = sorted(os.listdir(frames_folder))
     total_folders = len(all_folders) # 文件夹总数
     batch_data = []   # 用于存储每个批次的数据
+    processed_sequences = 0 # 已处理序列计数
 
     for i, folder in enumerate(all_folders):
+        if processed_sequences >= max_sequences:
+            break
+        
         # 构建每个帧文件夹和对应的标签文件夹的路径
-        frame_folder = os.path.join(frames_folder, folder)
-        label_file = os.path.join(labels_folder, folder + '.mat')
+        frame_folder = os.path.join(frames_folder, folder) #frame_folder就是0001，0002这样的文件夹
+        label_file = os.path.join(labels_folder, folder + '.mat') #label_file就是0001.mat,0002.mat这样的文件
     
 
         # 检查帧文件夹和标签文件是否存在
         if os.path.isdir(frame_folder) and os.path.exists(label_file):
             print(f"Processing {folder}...({i + 1} / {total_folders})")
             # 读取图像帧和标签数据
-            frames = load_frames(frame_folder)
+            frames = load_frames(frame_folder, target_size)
             labels = load_labels(label_file)
             # 将图像帧和标签数据添加到列表中
             batch_data.append((frames, labels))
-            
+            processed_sequences += 1
+
             # 如果批次数据达到指定大小或者已经处理完所有文件夹，则返回批次数据
             if len(batch_data) == batch_size or i == total_folders - 1:
                 yield batch_data
                 batch_data = [] # 清空批量数据列表，为下一个批次做准备
+    
     # 如果还有剩余的未处理数据，返回这些数据
     if batch_data:
         yield batch_data

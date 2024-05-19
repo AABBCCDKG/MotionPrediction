@@ -21,12 +21,17 @@ if __name__ == "__main__":
     all_frames = []
     all_labels = []
     batch_size = 50
+    max_sequences = 100 # 最大序列数
 
     # 使用数据预处理函数来批量处理数据
-    for batch_data in preprocess_data_in_batches(frames_folder, labels_folder, batch_size):
+    processed_sequences = 0 # 添加计数器
+    for batch_data in preprocess_data_in_batches(frames_folder, labels_folder, batch_size, max_sequences = max_sequences):
         for frames, labels in batch_data:
+            if processed_sequences >= max_sequences:
+                break # 达到最大处理序列数时停止
             all_frames.append(frames)
             all_labels.append(labels)
+            processed_sequences += 1
 
     # 将所有帧和标签数据合并为单个NumPy数组
     all_frames = np.concatenate(all_frames)
@@ -74,6 +79,6 @@ if __name__ == "__main__":
 
     train_lstm(lstm_model, data_loader, criterion, optimizer)
 
-    # 保存训练好的模型
-    torch.save(lstm_model.state_dict(), 'lstm_model.pth')
-    print("Model saved as 'lstm_model.pth'")
+    # 保存模型
+    torch.save(lstm_model.state_dict(), '/content/drive/My Drive/lstm_model.pth')
+    print("Model saved as 'lstm_model.pth' in Google Drive")
