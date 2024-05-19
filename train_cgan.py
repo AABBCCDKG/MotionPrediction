@@ -7,10 +7,11 @@ import matplotlib.pyplot as plt
 from models import Generator, Discriminator  # 从 models.py 中导入生成器和判别器模型
 from torch.utils.data import DataLoader, TensorDataset
 from data_preprocessing import preprocess_data_in_batches, extract_tarfile  # 从 data_preprocessing.py 中导入函数
+from sklearn.preprocessing import LabelEncoder
 
 # 定义可视化函数
-def visualize_data(frames, num_images = 5):
-    plt.figure(figsize = (10, 2 * num_images))
+def visualize_data(frames, num_images=5):
+    plt.figure(figsize=(10, 2 * num_images))
     for i in range(num_images):
         plt.subplot(num_images, 1, i + 1)
         plt.imshow(frames[i].astype(np.uint8))
@@ -27,7 +28,7 @@ def train_cgan(generator, discriminator, data_loader, epochs=100, batch_size=32,
 
     # 开始训练循环
     for epoch in range(epochs):
-        for i, (real_images, _) in enumerate(data_loader):
+        for i, (real_images, *labels) in enumerate(data_loader):
             batch_size = real_images.size(0)  # 获取当前批次的大小
             real_labels = torch.ones(batch_size, 1)  # 定义真实图片的标签为1
             fake_labels = torch.zeros(batch_size, 1)  # 定义假图片的标签为0
@@ -38,7 +39,7 @@ def train_cgan(generator, discriminator, data_loader, epochs=100, batch_size=32,
             d_loss_real = criterion(outputs, real_labels)  # 计算真实图像的损失
             d_loss_real.backward()  # 反向传播
 
-            noise = torch.randn(batch_size, 3, 128, 128)  # 生成随机噪声
+            noise = torch.randn(batch_size, 100, 1, 1)  # 生成随机噪声
             fake_images = generator(noise)  # 生成假图片
             outputs = discriminator(fake_images.detach())  # 判别器判别假图片
             d_loss_fake = criterion(outputs, fake_labels)  # 计算假图片的损失
@@ -62,6 +63,31 @@ def train_cgan(generator, discriminator, data_loader, epochs=100, batch_size=32,
     torch.save(discriminator.state_dict(), '/content/drive/My Drive/discriminator.pth')
     print("Models saved as 'generator.pth' and 'discriminator.pth' in Google Drive")
 
+# 编码非数值类型的数据
+def encode_non_numeric_data(labels):
+    label_encoders = {}
+    encoded_labels = {}
+    
+    for key in labels:
+        if isinstance(labels[key][0], (np.str_, str)):
+            le = LabelEncoder()
+            encoded_labels[key] = le.fit_transform(labels[key].astype(str))
+            label_encoders[key] = le
+        else:
+            encoded_labels[key] = labels[key]
+    
+    return encoded_labels, label_encoders
+
+# 确保标签和帧的大小匹配
+def ensure_size_match(frames, labels):
+    min_length = min(frames.shape[0], min(len(v) for v in labels.values()))
+    
+    frames = frames[:min_length]
+    for key in labels:
+        labels[key] = labels[key][:min_length]
+    
+    return frames, labels
+
 if __name__ == "__main__":
     # 设置文件夹路径
     tar_path = '/content/drive/My Drive/Penn_Action.tar.gz'
@@ -76,48 +102,56 @@ if __name__ == "__main__":
     all_frames = []
     all_labels = []
     batch_size = 50
-    max_sequences = 100  #只处理前100组数据
+    max_sequences = 100  # 只处理前100组数据
     sequence_count = 0   # 初始化计数器
 
     # 使用数据预处理函数来批量处理数据
-    for batch_data in preprocess_data_in_batches(frames_folder, labels_folder, batch_size, target_size = (128, 128)):
+    for batch_data in preprocess_data_in_batches(frames_folder, labels_folder, batch_size, target_size=(128, 128)):
         for frames, labels in batch_data:
             if sequence_count >= max_sequences:
                 break
             # 将每个批次的帧和标签添加到总列表中
             all_frames.append(frames)
-            if labels and len(labels) > 0:
+            if labels and len(labels) > 0:  # 确保 labels 是非空字典
                 all_labels.append(labels)
             sequence_count += 1
         if sequence_count >= max_sequences:
             break
 
     # 将所有帧和标签合并为单个NumPy数组
-    all_frames = np.concatenate(all_frames, axis = 0)
-    all_labels = [label for label in all_labels if len(label) > 0]
+    all_frames = np.concatenate(all_frames, axis=0)
+    all_labels = [label for label in all_labels if len(label) > 0]  # 确保标签字典非空
     concatenated_labels = {key: np.concatenate([d[key] for d in all_labels], axis=0) for key in all_labels[0]}
+
+    # 编码非数值类型的数据
+    encoded_labels, label_encoders = encode_non_numeric_data(concatenated_labels)
+
+    # 确保标签和帧的大小匹配
+    all_frames, encoded_labels = ensure_size_match(all_frames, encoded_labels)
 
     # 可视化数据
     visualize_data(all_frames)
 
-    # 将NumPy数组转换成PyTorch张量
-    preprocessed_frames = torch.tensor(all_frames, dtype = torch.float32)
+    # 将NumPy数组转换成PyTorch张量并确保通道顺序正确
+    preprocessed_frames = torch.tensor(all_frames.transpose((0, 3, 1, 2)), dtype=torch.float32)
     
-    # 将每个标签字段转换为PyTorch张量
-    preprocessed_labels_dict = {key: torch.tensor(concatenated_labels[key], dtype=torch.float32) for key in concatenated_labels}
+    # 将数值类型的标签字段转换为浮点数张量，将其他类型转换为整型张量
+    preprocessed_labels_dict = {}
+    for key in encoded_labels:
+        if isinstance(encoded_labels[key][0], (np.float32, np.float64)):
+            preprocessed_labels_dict[key] = torch.tensor(encoded_labels[key], dtype=torch.float32)
+        else:
+            preprocessed_labels_dict[key] = torch.tensor(encoded_labels[key].astype(np.int64), dtype=torch.long)
 
     # 创建包含所有标签的TensorDataset对象
     dataset = TensorDataset(preprocessed_frames, *preprocessed_labels_dict.values())
 
-    # 创建TensorDataset对象，将帧和标签打包在一起
-    dataset = TensorDataset(preprocessed_frames, labels)
-
     # 创建DataLoader，设置batch_size并将数据随机打乱
-    data_loader = DataLoader(dataset, batch_size = 32, shuffle = True)
+    data_loader = DataLoader(dataset, batch_size=32, shuffle=True)
 
     # 初始化生成器和判别器模型
     generator = Generator()
     discriminator = Discriminator()
 
     # 训练cGAN模型
-    train_cgan(generator, discriminator, data_loader, epochs = 100, batch_size = 32, lr = 0.0002)
+    train_cgan(generator, discriminator, data_loader, epochs=100, batch_size=32, lr=0.0002)
