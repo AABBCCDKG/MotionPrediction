@@ -73,3 +73,7 @@ if __name__ == "__main__":
             print(f'Epoch [{epoch + 1}/{epochs}], Loss: {loss.item():.4f}')
 
     train_lstm(lstm_model, data_loader, criterion, optimizer)
+
+    # 保存训练好的模型
+    torch.save(lstm_model.state_dict(), 'lstm_model.pth')
+    print("Model saved as 'lstm_model.pth'")

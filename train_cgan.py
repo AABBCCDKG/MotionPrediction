@@ -47,6 +47,11 @@ def train_cgan(generator, discriminator, data_loader, epochs=100, batch_size=32,
         # 打印每个epoch的损失
         print(f'Epoch [{epoch + 1}/{epochs}], d_loss: {d_loss.item():.4f}, g_loss: {g_loss.item():.4f}')
 
+    # 保存生成器和判别器模型
+    torch.save(generator.state_dict(), 'generator.pth')
+    torch.save(discriminator.state_dict(), 'discriminator.pth')
+    print("Models saved as 'generator.pth' and 'discriminator.pth'")
+
 if __name__ == "__main__":
     # 设置文件夹路径
     tar_path = '/content/drive/My Drive/Penn_Action.tar.gz'
