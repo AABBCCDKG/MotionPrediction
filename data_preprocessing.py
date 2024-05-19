@@ -1,13 +1,36 @@
 # 图像帧和标签配对：每个视频序列的图像帧和对应的标签数据会被读取并配对
 # 格式转换：图像帧会被转换为NumPy数组，标签数据会从MAT文件中提取出来并转为合适的格式
 # 数据结构：预处理后的数据会被组织成一个列表或者数组，其中每一个元素包含一对（图像帧，标签数据）数据
+from google.colab import drive
 import os
+import tarfile        # 解压缩`.tar.gz`文件
 import scipy.io       # 读取`.mat`文件
 import numpy as np    # 处理数组
 from PIL import Image # 读取图像文件
 
-frames_folder = '/Users/dong/Desktop/Penn_Action/frames/'
-labels_folder = '/Users/dong/Desktop/Penn_Action/labels/'
+# 设置文件夹路径
+tar_path = '/content/drive/My Drive/Penn_Action.tar.gz'
+extract_path = '/content/'
+frames_folder = os.path.join(extract_path, 'Penn_Action/frames')
+labels_folder = os.path.join(extract_path, 'Penn_Action/labels')
+
+# 创建目标文件夹并解压缩
+def extract_tarfile(tar_path, extract_path):
+    if not os.path.exists(extract_path):
+        os.makedirs(extract_path)
+    with tarfile.open(tar_path, 'r:gz') as tar:
+        tar.extractall(path=extract_path)
+    print(f"Extracted {tar_path} to {extract_path}")
+
+extract_tarfile(tar_path, extract_path)
+
+# 创建目标文件夹并解压缩
+if not os.path.exists(extract_path):
+    os.makedirs(extract_path)
+
+with tarfile.open(tar_path, 'r:gz') as tar:
+    tar.extractall(path=extract_path)
+print(f"Extracted {tar_path} to {extract_path}")
 
 # 定义函数读取图像帧
 def load_frames(frames_folder):
