@@ -50,7 +50,6 @@ class Discriminator(nn.Module):
 
     def forward(self, x):
         x = self.model(x)
-        print(f'After flatten: {x.shape}')  # 打印展平后的张量形状
         x = self.fc(x)
         x = self.sigmoid(x)
         return x

@@ -35,7 +35,6 @@ def train_cgan(generator, discriminator, data_loader, epochs=100, batch_size=32,
 
             noise = torch.randn(batch_size, 100, 1, 1)
             fake_images = generator(noise)
-            print(f'Fake images shape: {fake_images.shape}')  # 打印生成器生成的假图像形状
             outputs = discriminator(fake_images.detach())
             d_loss_fake = criterion(outputs, fake_labels)
             d_loss_fake.backward()
